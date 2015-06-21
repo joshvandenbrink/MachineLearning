@@ -1,0 +1,145 @@
+---
+title: "Machine Learning Project"
+author: "Josh Vandenbrink"
+date: "June 19, 2015"
+output: html_document
+---
+##Background##
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+
+##Data## 
+
+The training data for this project are available here: 
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here: 
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment. 
+
+What you should submit
+
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases. 
+
+1. Your submission should consist of a link to a Github repo with your R markdown and compiled HTML file describing your analysis. Please constrain the text of the writeup to < 2000 words and the number of figures to be less than 5. It will make it easier for the graders if you submit a repo with a gh-pages branch so the HTML page can be viewed online (and you always want to make it easy on graders :-).
+2. You should also apply your machine learning algorithm to the 20 test cases available in the test data above. Please submit your predictions in appropriate format to the programming assignment for automated grading. See the programming assignment for additional details. 
+
+
+First, load the required libraries for the analysis and set the seed for reproducibility. 
+```{r}
+library(caret)
+library(randomForest)
+library(rpart)
+library(rpart.plot)
+set.seed(100)
+
+```
+
+
+Set the file URL's and download the test and training data. 
+```{r}
+trainUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+
+testUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+training <- read.csv(url(trainUrl), na.strings=c("NA","#DIV/0!",""))
+testing <- read.csv(url(testUrl), na.strings=c("NA","#DIV/0!",""))
+
+
+```
+
+
+Remove the variables that are irrelevant to the analysis, such as timestamps and usernames, resulting in 153 variables
+```{r}
+training   <-training[,-c(1:7)]
+testing <-testing[,-c(1:7)]
+
+
+```
+
+Furthermore, remove the columns with all NAs, resulting in 53 test variables
+```{r}
+training<-training[,colSums(is.na(training)) == 0]
+testing <-testing[,colSums(is.na(testing)) == 0]
+
+```
+
+###***Cross-validation***###
+
+Cross-validation will be conducted by splitting the training data set into 2 subsets (70% training and 30
+% testing.) The models we test will then use these new training sets to validate the most accurate model to use for predicting the original Testing dataset. 
+
+First, we create the new training and testing sets for algorithm selection using the original training set. This is done by splitting the training set in two parts. 
+```{r}
+Train2 = createDataPartition(y=training$classe, p=0.7, list=FALSE)
+training2 = training[Train2,]
+testing2 = training[-Train2,]
+dim(training2)
+```
+
+Start with a barplot to look at the distribution of the prediction variable "Classe"
+```{r}
+plot(training2$classe, col="orange", xlab = "Classe", ylab = "Count", main = "Frequency of Variable 'Classe'")
+
+```
+
+
+Start with an initial prediction model, random forrest prediction. 
+```{r}
+
+initialModel <- randomForest(classe~., data=training2, method="class")
+
+predict1 <- predict(initialModel, testing2, type = "class")
+```
+
+Use a confusion matrix to assess the accuracy of the model. 
+```{r}
+confusionMatrix(predict1, testing2$classe)
+
+```
+We see this model has a very high accuracy of ~99%  (95% CI: (0.994, 0.997)). 
+
+Next, use a second model (Prediction Tree) to 
+```{r}
+secondmodel <- rpart(classe ~., data=training2, method="class")
+
+predict2 <- predict(secondmodel, testing2, type = "class")
+
+rpart.plot(secondmodel, main="Prediction Tree", branch = 1)
+```
+
+Use a confusion matrix to assess the accuracy of the second model. 
+```{r}
+confusionMatrix(predict2, testing2$classe)
+
+```
+This model has a much lower accuracy of ~74% (95% CI : (0.7255, 0.7482)). Thus we will discard the Prediction Tree and use the Random Forest prediction model. **With this model we expect the out-of-sample error rate tp be 0.5% when we test on the original Testing data.**
+
+Next, usinging our most accurate model (Random Forest), we **predict the outcomes** of "classe" in the testing set. 
+```{r}
+predictfinal <- predict(initialModel, testing, type="class")
+predictfinal
+
+```
+
+##**Coursera Submission**##
+
+```{r}
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(predictfinal)
+
+
+```
+
+
+
